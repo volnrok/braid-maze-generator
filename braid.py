@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from random import shuffle
+import random
 
 class Maze():
 	# Some direction constants
@@ -115,39 +115,81 @@ class Maze():
 
 		return count == self.width * self.height
 
+	def test_add_wall(self, is_up, c, full_check=False):
+		if is_up:
+			if self.walls_up[c[1]][c[0]]:
+				return True
+			c2 = (c[0], c[1] - 1)
+			self.walls_up[c[1]][c[0]] = True
+		else:
+			if self.walls_left[c[1]][c[0]]:
+				return True
+			c2 = (c[0] - 1, c[1])
+			self.walls_left[c[1]][c[0]] = True
+
+		violated = self.get_walls_c(c).count(False) < 2 or self.get_walls_c(c2).count(False) < 2
+		if full_check:
+			violated = violated or not self.fully_connected()
+
+		if violated:
+			if is_up:
+				self.walls_up[c[1]][c[0]] = False
+			else:
+				self.walls_left[c[1]][c[0]] = False
+			return False
+		return True
+
 def generate_braid_maze(width=10, height=10):
 	maze = Maze(width, height)
 	maze.create_bounds()
 
+	# Remove all pole walls
+	all_poles = set() # Poles are above and left of these cells
+	pole_options = []
+	for y in range(1, maze.height):
+		for x in range(1, maze.width):
+			all_poles.add((x, y))
+			if x + 1 < maze.width and y + 1 < maze.height:
+				pole_options.append((x, y))
+	random.shuffle(pole_options)
+
+	# Quick, cheap pole removal, I think this creates a nicer texture
+	for pole in pole_options:
+		if pole in all_poles:
+			if random.random() < 0.5:
+				if maze.test_add_wall(True, pole):
+					all_poles.discard(pole)
+					all_poles.discard((pole[0] + 1, pole[1]))
+			else:
+				if maze.test_add_wall(False, pole):
+					all_poles.discard(pole)
+					all_poles.discard((pole[0], pole[1] + 1))
+
 	# Populate a list of all walls that can be added
-	wall_options = [] # Tuples of (wall is up?, x, y)
+	wall_options = [] # Tuples of (wall is up?, (x, y)
 	for y in range(maze.height):
 		for x in range(maze.width):
 			if y > 0:
-				wall_options.append((True, x, y))
+				wall_options.append((True, (x, y)))
 			if x > 0:
-				wall_options.append((False, x, y))
-	shuffle(wall_options)
+				wall_options.append((False, (x, y)))
+	random.shuffle(wall_options)
 
 	# Add each wall that does not violate the maze principle
 	for wall in wall_options:
-		c1 = wall[1:]
-		# Wall is up from cell
-		if wall[0]:
-			c2 = (c1[0], c1[1] - 1)
-			maze.walls_up[wall[2]][wall[1]] = True
-		# Wall is left from cell
-		else:
-			c2 = (c1[0] - 1, c1[1])
-			maze.walls_left[wall[2]][wall[1]] = True
+		if random.random() < 0.7: # Leave some corridors open
+			maze.test_add_wall(wall[0], wall[1], full_check=True)
 
-		violated = maze.get_walls_c(c1).count(False) < 2 or maze.get_walls_c(c2).count(False) < 2 or not maze.fully_connected()
-
-		if violated:
-			if wall[0]:
-				maze.walls_up[wall[2]][wall[1]] = False
-			else:
-				maze.walls_left[wall[2]][wall[1]] = False
+	# Repeatedly find each pole, build a random wall, and remove perpendiculars
+	# Just ignore the poles for now
+	# run_count = 0
+	# while len(all_poles) > 0 and run_count < 10:
+	# 	all_poles = set()
+	# 	for y in range(1, maze.height):
+	# 		for x in range(1, maze.width):
+	# 			if not (maze.is_wall_up(x, y) or maze.is_wall_left(x, y) or maze.is_wall_up(x - 1, y) or maze.is_wall_left(x, y - 1)):
+	# 				all_poles.add((x, y))
+	# 	run_count += 1
 
 	maze.render_text()
 
